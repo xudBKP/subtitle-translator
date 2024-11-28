@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 字幕翻译工具
 
-## Getting Started
+这是一个基于 GPT API 的在线字幕翻译工具。你可以使用它来翻译 .srt 和 .ass 格式的字幕文件。
 
-First, run the development server:
+在线访问：[字幕翻译工具](https://xudbkp.github.io/subtitle-translator)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 功能特点
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- 支持 .srt 和 .ass 格式字幕文件
+- 多种 GPT 模型支持（GPT-4-Turbo、GPT-4、GPT-3.5-Turbo 等）
+- 多语言翻译支持（中文、英语、日语、韩语、法语、德语、西班牙语、俄语）
+- 可自定义翻译提示词
+- 批量翻译功能，可控制每批翻译的字幕数量
+- 实时显示翻译进度
+- 自动下载翻译结果
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 使用说明
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. 准备工作
+  - 获取 OpenAI API 密钥
+  - 确保您有需要翻译的字幕文件
 
-## Learn More
+2. 翻译步骤
+  - 访问 [字幕翻译工具](https://xudbkp.github.io/subtitle-translator)
+  - 输入您的 API 密钥
+  - 上传字幕文件
+  - 选择目标语言和模型
+  - 点击"开始翻译"
+  - 等待翻译完成后自动下载结果文件
 
-To learn more about Next.js, take a look at the following resources:
+3. 高级选项
+  - 可以在"系统提示词"中添加特定的翻译要求
+  - 可以调整每批翻译的字幕数量（0-100条）
+  - 可以自定义 API 端点
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 注意事项
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- API 密钥不会被保存或传输到除 OpenAI 之外的任何服务器
+- 翻译速度取决于您选择的批量大小和网络状况
+- 建议先用少量字幕测试后再进行大量翻译
+- 请确保您有足够的 API 额度
 
-## Deploy on Vercel
+## 开发相关
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+本项目使用以下技术栈：
+- Next.js
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT License
