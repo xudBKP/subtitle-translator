@@ -47,7 +47,7 @@ export default function SubtitleTranslator() {
   const [apiUrl, setApiUrl] = useState('https://api.openai.com/v1/chat/completions');
   const [model, setModel] = useState('gpt-4o-mini');
   const [targetLang, setTargetLang] = useState('zh');
-  const [batchSize, setBatchSize] = useState(10);
+  const [batchSize, setBatchSize] = useState(0);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [translating, setTranslating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -107,10 +107,11 @@ export default function SubtitleTranslator() {
             content: `请将以下${subtitleTexts.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
 
 翻译规则：
-1.逐句翻译：每条字幕必须逐句翻译，保持时间轴不变。
-2.不合并或拆分：禁止将多条字幕合并成一句或拆分原字幕。
-3.格式保持：请确保翻译后的文件格式与原文件一致，包括任何特殊标记或结构。
-4.标题翻译：如果存在标题部分，请翻译标题。
+1.格式保持：请确保翻译后的文件格式与原文件一致，包括任何特殊标记或结构
+2.逐句翻译：每条字幕必须逐句翻译，保持时间轴不变
+3.不合并或拆分：禁止将多条字幕合并成一句或拆分原字幕
+4.标题翻译：如果存在标题部分，请翻译标题
+5.注意回车也要保留，保证最后跟原来结构一样
 
 请按照原文的顺序翻译，并用"---"分隔每条翻译结果。只返回翻译结果：
 
