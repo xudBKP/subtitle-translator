@@ -100,11 +100,11 @@ export default function SubtitleTranslator() {
         messages: [
           ...(systemPrompt ? [{
             role: 'system' as const,
-            content: systemPrompt
+            content: []//systemPrompt
           }] : []),
           {
             role: 'user' as const,
-            content: `请将以下${subtitleTexts.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
+            content: `${systemPrompt}\n请将以下${subtitleTexts.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
 
 翻译规则：
 
