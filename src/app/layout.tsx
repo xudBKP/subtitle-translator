@@ -16,9 +16,6 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "字幕翻译工具",
   description: "基于 GPT 的字幕翻译工具",
-  icons:{
-    icon: '/subtitle-icon.svg',
-  },
 };
 
 export default function RootLayout({
