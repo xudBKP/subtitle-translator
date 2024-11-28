@@ -1,10 +1,12 @@
 "use client";
 
-import * as React from "react"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
-export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
+// 修改这个接口，添加具体的类型扩展
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  // 如果需要添加自定义属性可以在这里添加
+}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, ...props }, ref) => {

@@ -7,6 +7,20 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Eye, EyeOff } from 'lucide-react';
 
+interface Subtitle {
+  index: number;
+  timing: string;
+  text: string;
+}
+
+interface TranslationResponse {
+  choices: Array<{
+    message: {
+      content: string;
+    };
+  }>;
+}
+
 const LANGUAGE_OPTIONS = [
   { value: 'zh', label: '中文' },
   { value: 'en', label: 'English' },
@@ -44,15 +58,15 @@ export default function SubtitleTranslator() {
     }
   };
 
-  const parseSubtitle = async (content: string) => {
+  const parseSubtitle = async (content: string): Promise<Subtitle[]> => {
     const lines = content.split('\n');
-    const subtitles = [];
-    let currentSubtitle: any = {};
+    const subtitles: Subtitle[] = [];
+    let currentSubtitle: Partial<Subtitle> = {};
     
-    for (let line of lines) {
+    for (const line of lines) { // 改为 const
       if (/^\d+$/.test(line.trim())) {
         if (Object.keys(currentSubtitle).length > 0) {
-          subtitles.push(currentSubtitle);
+          subtitles.push(currentSubtitle as Subtitle);
         }
         currentSubtitle = { index: parseInt(line) };
       } else if (line.includes('-->')) {
@@ -67,13 +81,13 @@ export default function SubtitleTranslator() {
     }
     
     if (Object.keys(currentSubtitle).length > 0) {
-      subtitles.push(currentSubtitle);
+      subtitles.push(currentSubtitle as Subtitle);
     }
     
     return subtitles;
   };
 
-  const translateBatch = async (subtitles: any[]) => {
+  const translateBatch = async (subtitles: Subtitle[]): Promise<string[]> => {
     const subtitleTexts = subtitles.map(s => s.text);
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -85,11 +99,11 @@ export default function SubtitleTranslator() {
         model: model,
         messages: [
           ...(systemPrompt ? [{
-            role: 'system',
+            role: 'system' as const,
             content: systemPrompt
           }] : []),
           {
-            role: 'user',
+            role: 'user' as const,
             content: `请将以下${subtitleTexts.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
 
 翻译规则：
@@ -110,8 +124,8 @@ ${subtitleTexts.join('\n---\n')}`
     if (!response.ok) {
       throw new Error(`API 请求失败: ${response.status}`);
     }
-
-    const data = await response.json();
+  
+    const data = await response.json() as TranslationResponse;
     const translatedText = data.choices[0].message.content;
     return translatedText.split('---').map((text: string) => text.trim());
   };
