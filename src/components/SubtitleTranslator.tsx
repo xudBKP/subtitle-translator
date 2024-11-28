@@ -44,7 +44,7 @@ export default function SubtitleTranslator() {
   const [file, setFile] = useState<File | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
-  const [apiUrl, setApiUrl] = useState('https://api.openai.com/v1/chat/completions');
+  const [apiUrl, setApiUrl] = useState('https://aihubmix.com/v1/chat/completions');
   const [model, setModel] = useState('gpt-4o-mini');
   const [targetLang, setTargetLang] = useState('zh');
   const [batchSize, setBatchSize] = useState(0);
@@ -107,7 +107,7 @@ export default function SubtitleTranslator() {
             content: `${systemPrompt}\n请将以下${subtitleTexts.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
 
 翻译规则：
-
+(这几条规则优先级最高！)
 1. 格式保持：请确保翻译后的文件格式与原文件一致，包括任何特殊标记或结构，行间距也要保持
 2. 每条字幕都有其对应的时间轴，必须一对一翻译
 3. 禁止将多条字幕合并成一句
