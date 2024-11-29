@@ -47,7 +47,7 @@ export default function SubtitleTranslator() {
   const [apiUrl, setApiUrl] = useState('https://aihubmix.com/v1/chat/completions');
   const [model, setModel] = useState('gpt-4o-mini');
   const [targetLang, setTargetLang] = useState('zh');
-  const [batchSize, setBatchSize] = useState(0);
+  const [batchCount, setBatchCount] = useState(10); // 改为批次数
   const [systemPrompt, setSystemPrompt] = useState('');
   const [translating, setTranslating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -88,104 +88,159 @@ export default function SubtitleTranslator() {
   };
 
   const translateBatch = async (subtitles: Subtitle[]): Promise<string[]> => {
-    const subtitleTexts = subtitles.map(s => s.text);
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          ...(systemPrompt ? [{
-            role: 'system' as const,
-            content: []//systemPrompt
-          }] : []),
-          {
-            role: 'user' as const,
-            content: `${systemPrompt}\n请将以下${subtitleTexts.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
+      const subtitleTexts = subtitles.map(s => s.text);
+      
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              ...(systemPrompt ? [{
+                role: 'system' as const,
+                content: systemPrompt
+              }] : []),
+              {
+                role: 'user' as const,
+                content: `请将以下${subtitleTexts.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
 
-翻译规则：
-(这几条规则优先级最高！)
-1. 格式保持：请确保翻译后的文件格式与原文件一致，包括任何特殊标记或结构，行间距也要保持
-2. 每条字幕都有其对应的时间轴，必须一对一翻译
-3. 禁止将多条字幕合并成一句
-4. 禁止拆分原字幕
-5. 每条字幕必须独立翻译，保持原有的分句结构
-6. 即使前后文意相关，也要严格按照原字幕的分句来翻译
-7. 如果存在标题部分记得标题也要翻译
+  翻译规则：
+  1. 格式保持：请确保翻译后的文件格式与原文件一致
+  2. 每条字幕都有其对应的时间轴，必须一对一翻译
+  3. 禁止将多条字幕合并成一句
+  4. 禁止拆分原字幕
+  5. 每条字幕必须独立翻译，保持原有的分句结构
+  6. 即使前后文意相关，也要严格按照原字幕的分句来翻译
+  7. 如果存在标题部分记得标题也要翻译
+  8. 对于空行或只有空格的行，请返回一个空行
+  9. 每条字幕都是独立的，不要考虑上下文关系
 
-请按照原文的顺序翻译，并用"---"分隔每条翻译结果。只返回翻译结果：
+  请直接返回翻译结果，每条翻译之间用"<splitter>"分隔，确保返回数量与原文完全一致。
 
-${subtitleTexts.join('\n---\n')}`
+  待翻译字幕：
+  ${subtitleTexts.join('\n<splitter>\n')}`
+              }
+            ]
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`API 请求失败: ${response.status}`);
+        }
+      
+        const data = await response.json() as TranslationResponse;
+        const translatedText = data.choices[0].message.content;
+        const translatedArray = translatedText.split('<splitter>').map((text: string) => text.trim());
+
+        // 检查翻译结果数量是否匹配
+        if (translatedArray.length !== subtitleTexts.length) {
+          console.warn(`翻译结果数量不匹配 - 原文: ${subtitleTexts.length}, 译文: ${translatedArray.length}`);
+          // 如果译文数量少于原文，用原文补充
+          while (translatedArray.length < subtitleTexts.length) {
+            translatedArray.push(subtitleTexts[translatedArray.length]);
           }
-        ]
-      })
-    });
+          // 如果译文数量多于原文，截取
+          if (translatedArray.length > subtitleTexts.length) {
+            translatedArray.length = subtitleTexts.length;
+          }
+        }
 
-    if (!response.ok) {
-      throw new Error(`API 请求失败: ${response.status}`);
-    }
-  
-    const data = await response.json() as TranslationResponse;
-    const translatedText = data.choices[0].message.content;
-    return translatedText.split('---').map((text: string) => text.trim());
+        // 检查空值和undefined
+        return translatedArray.map((text, index) => {
+          if (!text || text === 'undefined' || text === 'null') {
+            console.warn(`发现无效翻译结果，位置: ${index}, 原文: ${subtitleTexts[index]}`);
+            return subtitleTexts[index];
+          }
+          return text;
+        });
+      } catch (error) {
+        console.error('翻译批次出错:', error);
+        return subtitleTexts;
+      }
   };
 
   const translateSubtitles = async () => {
-    if (!file || !apiKey) {
-      alert('请选择文件并输入API密钥');
-      return;
-    }
-
-    setTranslating(true);
-    setProgress(0);
-
-    try {
-      const content = await file.text();
-      const subtitles = await parseSubtitle(content);
-      const translatedSubtitles = [];
-      
-      const MAX_BATCH_SIZE = 100;
-      const actualBatchSize = batchSize === 0 
-        ? Math.min(subtitles.length, MAX_BATCH_SIZE)
-        : Math.min(batchSize, MAX_BATCH_SIZE);
-      
-      for (let i = 0; i < subtitles.length; i += actualBatchSize) {
-        const batch = subtitles.slice(i, i + actualBatchSize);
-        const translatedTexts = await translateBatch(batch);
-        
-        for (let j = 0; j < batch.length; j++) {
-          translatedSubtitles.push({
-            ...batch[j],
-            text: translatedTexts[j]
-          });
-        }
-
-        setProgress(((i + batch.length) / subtitles.length) * 100);
+      if (!file || !apiKey) {
+        alert('请选择文件并输入API密钥');
+        return;
       }
 
-      const output = translatedSubtitles.map(subtitle => (
-        `${subtitle.index}\n${subtitle.timing}\n${subtitle.text}\n`
-      )).join('\n');
-
-      const blob = new Blob([output], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `translated_${file.name}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-    } catch (error: any) {
-      alert('翻译过程中出现错误：' + error.message);
-    } finally {
-      setTranslating(false);
+      setTranslating(true);
       setProgress(0);
-    }
+
+      try {
+        const content = await file.text();
+        const subtitles = await parseSubtitle(content);
+        const translatedSubtitles: Subtitle[] = [];
+        
+        // 确保批次数有效
+        const actualBatchCount = Math.max(1, Math.min(batchCount, subtitles.length));
+        const itemsPerBatch = Math.ceil(subtitles.length / actualBatchCount);
+        
+        // 处理所有完整批次
+        for (let i = 0; i < subtitles.length; i += itemsPerBatch) {
+          const currentBatch = subtitles.slice(i, Math.min(i + itemsPerBatch, subtitles.length));
+          
+          try {
+            const translatedTexts = await translateBatch(currentBatch);
+            
+            // 确保返回的翻译结果和批次中的字幕数量匹配
+            if (translatedTexts.length === currentBatch.length) {
+              for (let j = 0; j < currentBatch.length; j++) {
+                translatedSubtitles.push({
+                  ...currentBatch[j],
+                  text: translatedTexts[j] || currentBatch[j].text
+                });
+              }
+            } else {
+              console.error(`批次翻译结果数量不匹配 - 期望: ${currentBatch.length}, 实际: ${translatedTexts.length}`);
+              currentBatch.forEach(subtitle => {
+                translatedSubtitles.push({...subtitle});
+              });
+            }
+
+            setProgress(((i + currentBatch.length) / subtitles.length) * 100);
+          } catch (batchError) {
+            console.error('处理批次时出错:', batchError);
+            currentBatch.forEach(subtitle => {
+              translatedSubtitles.push({...subtitle});
+            });
+          }
+        }
+
+        // 确保处理了所有字幕，包括最后一条
+        if (translatedSubtitles.length !== subtitles.length) {
+          console.error(`处理结果不完整: ${translatedSubtitles.length}/${subtitles.length}`);
+          // 补充缺失的字幕
+          for (let i = translatedSubtitles.length; i < subtitles.length; i++) {
+            translatedSubtitles.push({...subtitles[i]});
+          }
+        }
+
+        const output = translatedSubtitles.map(subtitle => (
+          `${subtitle.index}\n${subtitle.timing}\n${subtitle.text || ''}\n`
+        )).join('\n');
+
+        const blob = new Blob([output], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `translated_${file.name}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+      } catch (error: any) {
+        alert('翻译过程中出现错误：' + error.message);
+      } finally {
+        setTranslating(false);
+        setProgress(0);
+      }
   };
 
   return (
@@ -270,14 +325,14 @@ ${subtitleTexts.join('\n---\n')}`
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
-                每批翻译字幕数（0表示每批最多100条）
+                总批次数（将字幕平均分成几批翻译）
               </label>
               <Input
                 type="number"
-                min="0"
+                min="1"
                 max="100"
-                value={batchSize}
-                onChange={(e) => setBatchSize(parseInt(e.target.value) || 0)}
+                value={batchCount}
+                onChange={(e) => setBatchCount(parseInt(e.target.value) || 1)}
                 className="w-full"
               />
             </div>

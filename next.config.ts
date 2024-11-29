@@ -5,7 +5,7 @@ const config: NextConfig = {
   images: {
     unoptimized: true,
   },
-  basePath: '/subtitle-translator', // 替换成你的仓库名
+  basePath: process.env.NODE_ENV === 'production' ? '/subtitle-translator' : '' // 开发环境不需要 basePath
 }
 
 export default config
