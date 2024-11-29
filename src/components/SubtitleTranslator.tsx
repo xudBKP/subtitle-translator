@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Eye, EyeOff } from 'lucide-react';
 
-interface Subtitle {
-  index: number;
-  timing: string;
-  text: string;
+interface TitleInfo {
+  hasTitle: boolean;
+  titleLine: string;
+  titleText: string;
+  titlePrefix: string;
 }
 
 interface TranslationResponse {
@@ -58,56 +59,212 @@ export default function SubtitleTranslator() {
     }
   };
 
-  const parseSubtitle = async (content: string): Promise<Subtitle[]> => {
-    const lines = content.split('\n');
-    const subtitles: Subtitle[] = [];
-    let currentSubtitle: Partial<Subtitle> = {};
+  interface SubtitleLine {
+    type: 'format' | 'dialogue' | 'style' | 'info';
+    content: string;
+    text?: string;
+    prefix?: string;
+    index?: number;
+    timing?: string;
+  }
+  
+  // 判断字幕文件类型
+  const getSubtitleFormat = (content: string): 'srt' | 'ass' => {
+    if (content.includes('[Script Info]')) {
+      return 'ass';
+    }
+    return 'srt';
+  };
+  
+  // 解析 SRT 格式字幕
+  const parseSubtitleSrt = (content: string): SubtitleLine[] => {
+    // 处理 BOM
+    const cleanContent = content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content;
+    const lines = cleanContent.split('\n');
+    const subtitleLines: SubtitleLine[] = [];
+    let currentIndex: number | null = null;
+    let currentTiming: string | null = null;
+    let currentText: string[] = [];
     
-    for (const line of lines) { // 改为 const
-      if (/^\d+$/.test(line.trim())) {
-        if (Object.keys(currentSubtitle).length > 0) {
-          subtitles.push(currentSubtitle as Subtitle);
-        }
-        currentSubtitle = { index: parseInt(line) };
-      } else if (line.includes('-->')) {
-        currentSubtitle.timing = line.trim();
-      } else if (line.trim() !== '') {
-        if (!currentSubtitle.text) {
-          currentSubtitle.text = line.trim();
+    const isValidTimestamp = (line: string): boolean => {
+      // 验证时间轴格式 00:00:00,000 --> 00:00:00,000
+      const timestampPattern = /^\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}$/;
+      return timestampPattern.test(line.trim());
+    };
+  
+    const processCurrentSubtitle = () => {
+      if (currentIndex !== null && currentTiming !== null && currentText.length > 0) {
+        // 验证当前字幕块的完整性
+        if (isValidTimestamp(currentTiming)) {
+          const textContent = currentText.join('\n');
+          subtitleLines.push({
+            type: 'dialogue',
+            content: `${currentIndex}\n${currentTiming}\n${textContent}`,
+            text: textContent,
+            prefix: `${currentIndex}\n${currentTiming}\n`,
+            index: currentIndex,
+            timing: currentTiming
+          });
         } else {
-          currentSubtitle.text += '\n' + line.trim();
+          console.warn(`跳过无效字幕块，序号: ${currentIndex}`);
+        }
+      }
+      // 重置状态
+      currentIndex = null;
+      currentTiming = null;
+      currentText = [];
+    };
+  
+    for (let line of lines) {
+      const trimmedLine = line.trim();
+      
+      if (trimmedLine === '') {
+        processCurrentSubtitle();
+      } else if (/^\d+$/.test(trimmedLine)) {
+        // 处理上一个字幕块（如果存在）
+        if (currentIndex !== null) {
+          processCurrentSubtitle();
+        }
+        currentIndex = parseInt(trimmedLine);
+      } else if (line.includes('-->')) {
+        currentTiming = line;
+      } else if (currentIndex !== null && currentTiming !== null) {
+        currentText.push(line);
+      }
+    }
+    
+    // 处理最后一个字幕块
+    processCurrentSubtitle();
+    
+    // 验证字幕序号的连续性
+    let previousIndex = 0;
+    const nonSequentialIndices = subtitleLines
+      .filter(line => {
+        const isSequential = line.index === previousIndex + 1;
+        previousIndex = line.index as number;
+        return !isSequential;
+      })
+      .map(line => line.index);
+  
+    if (nonSequentialIndices.length > 0) {
+      console.warn('发现非连续的字幕序号:', nonSequentialIndices);
+    }
+  
+    return subtitleLines;
+  };
+  
+  // 解析 ASS 格式字幕
+  const parseSubtitleAss = (content: string): SubtitleLine[] => {
+    const lines = content.split('\n');
+    const subtitleLines: SubtitleLine[] = [];
+    
+    for (const line of lines) {
+      if (line.startsWith('Dialogue:')) {
+        const lastCommaIndex = line.lastIndexOf(',');
+        if (lastCommaIndex !== -1) {
+          const prefix = line.substring(0, lastCommaIndex + 1);
+          const text = line.substring(lastCommaIndex + 1).trim();
+          subtitleLines.push({
+            type: 'dialogue',
+            content: line,
+            text,
+            prefix
+          });
+        } else {
+          subtitleLines.push({ type: 'dialogue', content: line });
+        }
+      } else if (line.trim() === '') {
+        subtitleLines.push({ type: 'format', content: '' });
+      } else {
+        subtitleLines.push({ type: 'format', content: line });
+      }
+    }
+    
+    return subtitleLines;
+  };
+
+  const parseTitle = (content: string, format: 'srt' | 'ass'): TitleInfo => {
+    const defaultResult = { hasTitle: false, titleLine: '', titleText: '', titlePrefix: '' };
+    
+    if (format === 'ass') {
+      const lines = content.split('\n');
+      const titleLineIndex = lines.findIndex(line => line.startsWith('Title:'));
+      
+      if (titleLineIndex !== -1) {
+        const titleLine = lines[titleLineIndex];
+        const titleParts = titleLine.split(':', 2);
+        if (titleParts.length === 2) {
+          return {
+            hasTitle: true,
+            titleLine: titleLine,
+            titleText: titleParts[1].trim(),
+            titlePrefix: titleParts[0] + ': '
+          };
         }
       }
     }
     
-    if (Object.keys(currentSubtitle).length > 0) {
-      subtitles.push(currentSubtitle as Subtitle);
-    }
-    
-    return subtitles;
+    return defaultResult;
   };
-
-  const translateBatch = async (subtitles: Subtitle[]): Promise<string[]> => {
-      const subtitleTexts = subtitles.map(s => s.text);
-      
-      try {
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              ...(systemPrompt ? [{
-                role: 'system' as const,
-                content: systemPrompt
-              }] : []),
-              {
-                role: 'user' as const,
-                content: `请将以下${subtitleTexts.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
-
+  
+  const translateTitle = async (titleInfo: TitleInfo, targetLang: string): Promise<string> => {
+    if (!titleInfo.hasTitle || !titleInfo.titleText) return titleInfo.titleLine;
+  
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            {
+              role: 'user' as const,
+              content: `请将以下影片标题翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}：\n${titleInfo.titleText}
+              只返回翻译结果`
+            }
+          ]
+        })
+      });
+  
+      if (!response.ok) {
+        throw new Error(`API 请求失败: ${response.status}`);
+      }
+    
+      const data = await response.json() as TranslationResponse;
+      const translatedTitle = data.choices[0].message.content.trim();
+      return `${titleInfo.titlePrefix}${translatedTitle}`;
+    } catch (error) {
+      console.error('标题翻译出错:', error);
+      return titleInfo.titleLine;
+    }
+  };
+  
+  const translateBatch = async (subtitles: SubtitleLine[]): Promise<string[]> => {
+    const textsToTranslate = subtitles
+      .filter(sub => sub.type === 'dialogue' && sub.text)
+      .map(sub => sub.text as string);
+    
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            ...(systemPrompt ? [{
+              role: 'system' as const,
+              content: systemPrompt
+            }] : []),
+            {
+              role: 'user' as const,
+              content: `请将以下${textsToTranslate.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
+  
   翻译规则：
   1. 格式保持：请确保翻译后的文件格式与原文件一致
   2. 每条字幕都有其对应的时间轴，必须一对一翻译
@@ -116,131 +273,130 @@ export default function SubtitleTranslator() {
   5. 每条字幕必须独立翻译，保持原有的分句结构
   6. 即使前后文意相关，也要严格按照原字幕的分句来翻译
   7. 如果存在标题部分记得标题也要翻译
-  8. 对于空行或只有空格的行，请返回一个空行
-  9. 每条字幕都是独立的，不要考虑上下文关系
-
-  请直接返回翻译结果，每条翻译之间用"<splitter>"分隔，确保返回数量与原文完全一致。
-
-  待翻译字幕：
-  ${subtitleTexts.join('\n<splitter>\n')}`
-              }
-            ]
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`API 请求失败: ${response.status}`);
-        }
-      
-        const data = await response.json() as TranslationResponse;
-        const translatedText = data.choices[0].message.content;
-        const translatedArray = translatedText.split('<splitter>').map((text: string) => text.trim());
-
-        // 检查翻译结果数量是否匹配
-        if (translatedArray.length !== subtitleTexts.length) {
-          console.warn(`翻译结果数量不匹配 - 原文: ${subtitleTexts.length}, 译文: ${translatedArray.length}`);
-          // 如果译文数量少于原文，用原文补充
-          while (translatedArray.length < subtitleTexts.length) {
-            translatedArray.push(subtitleTexts[translatedArray.length]);
-          }
-          // 如果译文数量多于原文，截取
-          if (translatedArray.length > subtitleTexts.length) {
-            translatedArray.length = subtitleTexts.length;
-          }
-        }
-
-        // 检查空值和undefined
-        return translatedArray.map((text, index) => {
-          if (!text || text === 'undefined' || text === 'null') {
-            console.warn(`发现无效翻译结果，位置: ${index}, 原文: ${subtitleTexts[index]}`);
-            return subtitleTexts[index];
-          }
-          return text;
-        });
-      } catch (error) {
-        console.error('翻译批次出错:', error);
-        return subtitleTexts;
-      }
-  };
-
-  const translateSubtitles = async () => {
-      if (!file || !apiKey) {
-        alert('请选择文件并输入API密钥');
-        return;
-      }
-
-      setTranslating(true);
-      setProgress(0);
-
-      try {
-        const content = await file.text();
-        const subtitles = await parseSubtitle(content);
-        const translatedSubtitles: Subtitle[] = [];
-        
-        // 确保批次数有效
-        const actualBatchCount = Math.max(1, Math.min(batchCount, subtitles.length));
-        const itemsPerBatch = Math.ceil(subtitles.length / actualBatchCount);
-        
-        // 处理所有完整批次
-        for (let i = 0; i < subtitles.length; i += itemsPerBatch) {
-          const currentBatch = subtitles.slice(i, Math.min(i + itemsPerBatch, subtitles.length));
-          
-          try {
-            const translatedTexts = await translateBatch(currentBatch);
-            
-            // 确保返回的翻译结果和批次中的字幕数量匹配
-            if (translatedTexts.length === currentBatch.length) {
-              for (let j = 0; j < currentBatch.length; j++) {
-                translatedSubtitles.push({
-                  ...currentBatch[j],
-                  text: translatedTexts[j] || currentBatch[j].text
-                });
-              }
-            } else {
-              console.error(`批次翻译结果数量不匹配 - 期望: ${currentBatch.length}, 实际: ${translatedTexts.length}`);
-              currentBatch.forEach(subtitle => {
-                translatedSubtitles.push({...subtitle});
-              });
+  8. 如果原文是空白或只有空格的行，请返回一个空行
+  
+  注意：第1条和第5条为最高优先级！
+  
+  请直接返回翻译结果，每条翻译之间用"<splitter>"分隔，确保返回数量与原文完全一致：
+  
+  ${textsToTranslate.join('\n<splitter>\n')}`
             }
-
-            setProgress(((i + currentBatch.length) / subtitles.length) * 100);
-          } catch (batchError) {
-            console.error('处理批次时出错:', batchError);
-            currentBatch.forEach(subtitle => {
-              translatedSubtitles.push({...subtitle});
-            });
-          }
-        }
-
-        // 确保处理了所有字幕，包括最后一条
-        if (translatedSubtitles.length !== subtitles.length) {
-          console.error(`处理结果不完整: ${translatedSubtitles.length}/${subtitles.length}`);
-          // 补充缺失的字幕
-          for (let i = translatedSubtitles.length; i < subtitles.length; i++) {
-            translatedSubtitles.push({...subtitles[i]});
-          }
-        }
-
-        const output = translatedSubtitles.map(subtitle => (
-          `${subtitle.index}\n${subtitle.timing}\n${subtitle.text || ''}\n`
-        )).join('\n');
-
-        const blob = new Blob([output], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `translated_${file.name}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-      } catch (error: any) {
-        alert('翻译过程中出现错误：' + error.message);
-      } finally {
-        setTranslating(false);
-        setProgress(0);
+          ]
+        })
+      });
+  
+      if (!response.ok) {
+        throw new Error(`API 请求失败: ${response.status}`);
       }
+    
+      const data = await response.json() as TranslationResponse;
+      const translatedText = data.choices[0].message.content;
+      const translatedArray = translatedText.split('<splitter>').map((text: string) => text.trim());
+  
+      // 检查翻译结果数量是否匹配
+      if (translatedArray.length !== textsToTranslate.length) {
+        console.warn(`翻译结果数量不匹配 - 原文: ${textsToTranslate.length}, 译文: ${translatedArray.length}`);
+        // 如果译文数量少于原文，用原文补充
+        while (translatedArray.length < textsToTranslate.length) {
+          translatedArray.push(textsToTranslate[translatedArray.length]);
+        }
+        // 如果译文数量多于原文，截取
+        if (translatedArray.length > textsToTranslate.length) {
+          translatedArray.length = textsToTranslate.length;
+        }
+      }
+  
+      return translatedArray;
+    } catch (error) {
+      console.error('翻译批次出错:', error);
+      return textsToTranslate;
+    }
+  };
+  
+  const translateSubtitles = async () => {
+    if (!file || !apiKey) {
+      alert('请选择文件并输入API密钥');
+      return;
+    }
+  
+    setTranslating(true);
+    setProgress(0);
+  
+    try {
+      const content = await file.text();
+      const format = getSubtitleFormat(content);
+      
+      // 解析并翻译标题
+      const titleInfo = parseTitle(content, format);
+      const translatedTitleLine = titleInfo.hasTitle 
+        ? await translateTitle(titleInfo, targetLang)
+        : '';
+      
+      const subtitleLines = format === 'ass' ? parseSubtitleAss(content) : parseSubtitleSrt(content);
+      let translatedLines: SubtitleLine[] = [];
+      
+      // 找出所有需要翻译的行
+      const dialogueLines = subtitleLines.filter(line => line.type === 'dialogue' && line.text);
+      const actualBatchCount = Math.max(1, Math.min(batchCount, dialogueLines.length));
+      const itemsPerBatch = Math.ceil(dialogueLines.length / actualBatchCount);
+      
+      // 按批次翻译
+      for (let i = 0; i < dialogueLines.length; i += itemsPerBatch) {
+        const currentBatch = dialogueLines.slice(i, Math.min(i + itemsPerBatch, dialogueLines.length));
+        const translatedTexts = await translateBatch(currentBatch);
+        
+        for (let j = 0; j < currentBatch.length; j++) {
+          const originalLine = currentBatch[j];
+          const translatedText = translatedTexts[j] || originalLine.text;
+          translatedLines.push({
+            ...originalLine,
+            content: format === 'ass' 
+              ? `${originalLine.prefix}${translatedText}` 
+              : `${originalLine.index}\n${originalLine.timing}\n${translatedText}`
+          });
+        }
+        
+        setProgress(((i + currentBatch.length) / dialogueLines.length) * 100);
+      }
+  
+      // 根据格式生成输出
+      let output: string;
+      if (format === 'ass') {
+        // ASS 格式：按原始行顺序组装，替换对应的翻译内容
+        const outputLines = subtitleLines.map((line, index) => {
+          // 如果是标题行且有翻译，使用翻译后的标题
+          if (titleInfo.hasTitle && line.content === titleInfo.titleLine) {
+            return translatedTitleLine;
+          }
+          // 如果是对话行，使用翻译后的内容
+          if (line.type === 'dialogue') {
+            const dialogueIndex = subtitleLines.filter((l, i) => i < index && l.type === 'dialogue').length;
+            return translatedLines[dialogueIndex]?.content || line.content;
+          }
+          return line.content;
+        });
+        output = outputLines.join('\n');
+      } else {
+        // SRT 格式：确保字幕之间有空行
+        output = translatedLines.map(line => line.content).join('\n\n') + '\n';
+      }
+  
+      const blob = new Blob([output], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `translated_${file.name}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+  
+    } catch (error: any) {
+      alert('翻译过程中出现错误：' + error.message);
+    } finally {
+      setTranslating(false);
+      setProgress(0);
+    }
   };
 
   return (
