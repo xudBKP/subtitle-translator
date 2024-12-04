@@ -194,16 +194,14 @@ export default function SubtitlePreviewEditor() {
           <div className="flex items-center justify-between px-6 py-4 border-t bg-white sticky bottom-0">
             <div className="flex items-center gap-1">
               <Button
-                variant="outline"
-                size="icon"
+                className="h-8 w-8 p-0"
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button
-                variant="outline"
-                size="icon"
+                className="h-8 w-8 p-0"
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
               >
@@ -225,7 +223,10 @@ export default function SubtitlePreviewEditor() {
                     placeholder="跳转到页码..."
                     className="w-32 text-sm"
                   />
-                  <Button type="submit" variant="outline" size="sm">
+                  <Button 
+                    type="submit"
+                    className="h-8 px-3"
+                  >
                     跳转
                   </Button>
                 </form>
@@ -242,7 +243,10 @@ export default function SubtitlePreviewEditor() {
                   placeholder="字幕编号..."
                   className="w-24 text-sm"
                 />
-                <Button type="submit" variant="outline" size="sm">
+                <Button 
+                  type="submit"
+                  className="h-8 px-3"
+                >
                   跳转
                 </Button>
               </form>
