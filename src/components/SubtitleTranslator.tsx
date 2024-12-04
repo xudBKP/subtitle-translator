@@ -472,8 +472,8 @@ Translation rules:
   };
   
   const translateSubtitles = async () => {
-    if (!file || !apiKey) {
-      alert('请选择文件并输入API密钥');
+    if (!file) {
+      alert('请选择文件');
       return;
     }
     
