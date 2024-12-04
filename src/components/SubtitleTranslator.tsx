@@ -246,11 +246,11 @@ export default function SubtitleTranslator() {
     if (!titleInfo.hasTitle || !titleInfo.titleText) return titleInfo.titleLine;
   
     try {
-      const response = await fetch(apiUrl, {
+      const response = await fetch(apiKey ? apiUrl : DEFAULT_VALUES.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Authorization': `Bearer ${apiKey || DEFAULT_VALUES.key}`
         },
         body: JSON.stringify({
           model: model,
@@ -339,7 +339,7 @@ export default function SubtitleTranslator() {
   1. 每条字幕已经用"<splitter>"分隔开。
   2. 字幕无论多少行一直到"<splitter>"为止都算一条字幕
 翻译规则：
-  1. 保持原文格式。
+  1. 保持原文格式，不要添加或删除任何标点符号。
   2. 即使句子不通顺也不要拆分或合并字幕。
   3. 必须独立翻译每一条字幕。
   4. 禁止合并多条字幕。
@@ -348,23 +348,6 @@ export default function SubtitleTranslator() {
   7. 保持换行符的位置（如果有）。
 
 当你觉得某条字幕明显没说完被中断了，请不要自作主张进行合并或者拆分，这会导致某条字幕对应的翻译没了。
-
-示例:
-请翻译成中文：
-One of the many issues I faced on my last journey
-<splitter>
-was, not knowing how to communicate with strangers.
-<splitter>
-
-正确翻译:
-我在上一个旅途的许多问题其中一个
-<splitter>
-是我不知道该怎么跟陌生人交流
-<splitter>
-
-错误翻译:
-我在上一个旅途的许多问题其中一个是我不知道该怎么跟陌生人交流
-<splitter>
 
 当一条字幕太多的时候也请不要自作主张进行拆分。
 
@@ -490,9 +473,16 @@ Translation rules:
       
       // 解析并翻译标题
       const titleInfo = parseTitle(content, format);
-      const translatedTitleLine = titleInfo.hasTitle 
-        ? await translateTitle(titleInfo, targetLang)
-        : '';
+      let translatedTitleLine = titleInfo.titleLine; // 默认使用原标题
+      // 尝试翻译标题，但不影响后续翻译
+      if (titleInfo.hasTitle) {
+        try {
+          translatedTitleLine = await translateTitle(titleInfo, targetLang);
+        } catch (error) {
+          console.error('标题翻译出错:', error);
+          // 标题翻译失败继续使用原标题
+        }
+      }
       
       const subtitleLines = format === 'ass' ? parseSubtitleAss(content) : parseSubtitleSrt(content);
       let translatedLines: SubtitleLine[] = [];
