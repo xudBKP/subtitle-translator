@@ -52,11 +52,8 @@ const LANGUAGE_OPTIONS = [
 ];
 
 const MODEL_OPTIONS = [
-  { value: 'gpt-4o-mini', label: 'GPT-4O-Mini' },
-  { value: 'gpt-4o-mini-2024-07-18', label: 'GPT-4O-Mini (2024-07-18)' },
-  { value: 'gpt-4-1106-preview', label: 'GPT-4-Turbo' },
-  { value: 'gpt-4', label: 'GPT-4' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5-Turbo' },
+  { value: 'gpt-4o-mini', label: 'gpt-4o-mini' },
+  { value: 'gpt-4o-mini-2024-07-18', label: 'gpt-4o-mini-2024-07-18' },
 ];
 
 
@@ -71,16 +68,22 @@ export default function SubtitleTranslator() {
     translatedTitle: string;
   } | null>(null);
   
+  const DEFAULT_VALUES = {
+    key: 'sk-6PPQ1XNbmIXwSggw6f15550895Df4670B734EbB94f6d00F0',
+    url: 'https://aihubmix.com/v1/chat/completions'
+  };
+  
   const [file, setFile] = useState<File | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
-  const [apiUrl, setApiUrl] = useState('https://aihubmix.com/v1/chat/completions');
+  const [apiUrl, setApiUrl] = useState('https://openai.com/v1/chat/completions');
   const [model, setModel] = useState('gpt-4o-mini');
   const [targetLang, setTargetLang] = useState('zh');
   const [batchCount, setBatchCount] = useState(10); // 改为批次数
   const [systemPrompt, setSystemPrompt] = useState('');
   const [translating, setTranslating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [temperature, setTemperature] = useState(0.7);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -330,7 +333,7 @@ export default function SubtitleTranslator() {
         {
           role: 'user' as const,
           content: `You are a helpful assistant. You can help me by answering my questions.
-请将以下${textsToTranslate.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
+请将以下${textsToTranslate.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label}。
 
 已知：
   1. 每条字幕已经用"<splitter>"分隔开。
@@ -346,26 +349,8 @@ export default function SubtitleTranslator() {
 
 当你觉得某条字幕明显没说完被中断了，请不要自作主张进行合并或者拆分，这会导致某条字幕对应的翻译没了。
 
-示例1:
-原文：
-She uses red as the color for the first
-<splitter>
-one, and blue for the second
-one.
-<splitter>
-
-正确翻译:
-她将红色作为第一个的颜色，
-<splitter>
-蓝色作为第二个的颜色
-<splitter>
-
-错误翻译:
-她将红色作为第一个的颜色，蓝色作为第二个的颜色
-<splitter>
-
-示例2:
-原文：
+示例:
+请翻译成中文：
 One of the many issues I faced on my last journey
 <splitter>
 was, not knowing how to communicate with strangers.
@@ -375,6 +360,10 @@ was, not knowing how to communicate with strangers.
 我在上一个旅途的许多问题其中一个
 <splitter>
 是我不知道该怎么跟陌生人交流
+<splitter>
+
+错误翻译:
+我在上一个旅途的许多问题其中一个是我不知道该怎么跟陌生人交流
 <splitter>
 
 当一条字幕太多的时候也请不要自作主张进行拆分。
@@ -388,24 +377,24 @@ was, not knowing how to communicate with strangers.
 <splitter>
 
 请直接返回翻译结果，记得每条翻译用"<splitter>"分隔，保证翻译的字幕数量和原文相等。
-这是你需要翻译的字幕：
+以下所有内容请翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label}：
   
-${textsToTranslate.map(text => `${text}<splitter>`).join('\n')}`
+${textsToTranslate.map(text => `${text}\n<splitter>`).join('\n')}`
         }
       ];
 
       
 
-      const response = await fetch(apiUrl, {
+      const response = await fetch(apiKey ? apiUrl : DEFAULT_VALUES.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Authorization': `Bearer ${apiKey || DEFAULT_VALUES.key}`
         },
         body: JSON.stringify({
           model: model,
           messages: messages,
-          temperature: 0,
+          temperature: temperature,
         })
       });
       
@@ -588,17 +577,6 @@ Translation rules:
         output = translatedLines.map(line => line.content).join('\n\n') + '\n';
       }
   
-      /* 自动下载
-      const blob = new Blob([output], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `translated_${file.name}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      */
   
     } catch (error: any) {
       alert('翻译过程中出现错误：' + error.message);
@@ -665,7 +643,7 @@ Translation rules:
             <label className="block text-sm font-medium mb-1">系统提示词（可选）</label>
             <Textarea
               placeholder={[
-                '再次输入翻译要求，例如："请在翻译时使用日常用语"',
+                '可选择输入翻译要求，例如："请在翻译时使用日常用语"',
                 '或者介绍下该影片的类型，故事背景等',
                 '',
                 '注意：不通顺的语句可能导致翻译错位，请注意检查'
@@ -691,7 +669,7 @@ Translation rules:
             <div className="relative mb-2">
               <Input
                 type={showApiKey ? "text" : "password"}
-                placeholder="输入API密钥"
+                placeholder="未输入 API 密钥时将使用默认 API"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="w-full pr-10"
@@ -738,6 +716,26 @@ Translation rules:
                   </option>
                 ))}
               </select>
+            </div>
+            {/*temperature 滑块*/}
+            <div className="mb-2">
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-sm font-medium text-gray-700">Temperature: {temperature.toFixed(1)}</label>
+                <span className="text-xs text-gray-500"></span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={temperature}
+                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>更保守</span>
+                <span>更创造性</span>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
