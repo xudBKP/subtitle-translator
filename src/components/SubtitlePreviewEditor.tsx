@@ -6,12 +6,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 
 interface SubtitleLine {
-  type: string;
-  index: number;
-  timing: string;
-  text: string;
-  translatedText: string;
+    index: number;
+    timing: string;
+    text: string;
+    translatedText: string;
 }
+
+interface SubtitlePreviewEditorProps {
+    subtitles: SubtitleLine[] | null;
+    onSave?: (subtitles: SubtitleLine[]) => void;
+}
+  
 
 // 生成示例数据
 const generateDemoSubtitles = (count: number): SubtitleLine[] => {
@@ -24,9 +29,15 @@ const generateDemoSubtitles = (count: number): SubtitleLine[] => {
   }));
 };
 
-export default function SubtitlePreviewEditor() {
+
+export default function SubtitlePreviewEditor({ 
+    subtitles = null,
+    onSave
+  }: SubtitlePreviewEditorProps) {
   // 生成100条示例字幕
-  const subtitles = generateDemoSubtitles(100);
+  const subtitleData = subtitles || generateDemoSubtitles(100);
+  const [editedSubtitles, setEditedSubtitles] = useState(subtitleData);
+
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [jumpPage, setJumpPage] = useState('');
@@ -34,11 +45,11 @@ export default function SubtitlePreviewEditor() {
   
   const subtitleRefs = useRef<{ [key: number]: HTMLTableRowElement }>({});
   
-  const totalSubtitles = subtitles.length;
+  const totalSubtitles = editedSubtitles.length;
   const totalPages = Math.ceil(totalSubtitles / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalSubtitles);
-  const currentSubtitles = subtitles.slice(startIndex, endIndex);
+  const currentSubtitles = editedSubtitles.slice(startIndex, endIndex);
 
   const handlePageSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newSize = parseInt(e.target.value);
@@ -119,7 +130,10 @@ export default function SubtitlePreviewEditor() {
                 <span>当前范围：{startIndex + 1}-{endIndex}</span>
               </div>
             </div>
-            <Button className="flex items-center gap-2">
+            <Button 
+              className="flex items-center gap-2"
+              onClick={() => onSave?.(editedSubtitles)}
+            >
               <Save size={16} />
               保存并下载
             </Button>
@@ -179,7 +193,16 @@ export default function SubtitlePreviewEditor() {
                           </button>
                         </div>
                         <Textarea
-                          defaultValue={subtitle.translatedText}
+                          value={subtitle.translatedText}
+                          onChange={(e) => {
+                            const newSubtitles = [...editedSubtitles];
+                            const subtitleIndex = startIndex + index;
+                            newSubtitles[subtitleIndex] = {
+                              ...newSubtitles[subtitleIndex],
+                              translatedText: e.target.value
+                            };
+                            setEditedSubtitles(newSubtitles);
+                          }}
                           className="w-full resize-none min-h-[80px]"
                           rows={3}
                         />

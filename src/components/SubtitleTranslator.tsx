@@ -24,6 +24,22 @@ interface TranslationResponse {
   }>;
 }
 
+interface SubtitleLine {
+  type: 'format' | 'dialogue' | 'style' | 'info';
+  content: string;
+  text?: string;
+  prefix?: string;
+  index?: number;
+  timing?: string;
+}
+
+interface TranslatedSubtitleLine {
+  index: number;
+  timing: string;
+  text: string;
+  translatedText: string;
+}
+
 const LANGUAGE_OPTIONS = [
   { value: 'zh', label: '中文' },
   { value: 'en', label: 'English' },
@@ -43,7 +59,18 @@ const MODEL_OPTIONS = [
   { value: 'gpt-3.5-turbo', label: 'GPT-3.5-Turbo' },
 ];
 
+
 export default function SubtitleTranslator() {
+  
+  const [translatedSubtitles, setTranslatedSubtitles] = useState<TranslatedSubtitleLine[] | null>(null);
+  const [fileInfo, setFileInfo] = useState<{
+    file: File | null;
+    format: 'srt' | 'ass';
+    subtitleLines: SubtitleLine[];
+    titleInfo: TitleInfo;
+    translatedTitle: string;
+  } | null>(null);
+  
   const [file, setFile] = useState<File | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -58,6 +85,9 @@ export default function SubtitleTranslator() {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       setFile(event.target.files[0]);
+      // 重置翻译和预览相关的状态
+      setTranslatedSubtitles(null);
+      setFileInfo(null);
     }
   };
 
@@ -267,17 +297,10 @@ export default function SubtitleTranslator() {
               role: 'user' as const,
               content: `请将以下${textsToTranslate.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
   
-  翻译规则：
-  1. 格式保持：请确保翻译后的文件格式与原文件一致
-  2. 每条字幕都有其对应的时间轴，必须一对一翻译
-  3. 禁止将多条字幕合并成一句
-  4. 禁止拆分原字幕
-  5. 每条字幕必须独立翻译，保持原有的分句结构
-  6. 即使前后文意相关，也要严格按照原字幕的分句来翻译
-  7. 如果存在标题部分记得标题也要翻译
-  8. 如果原文是空白或只有空格的行，请返回一个空行
-  
-  注意：第1条和第5条为最高优先级！
+  翻译规则(请严格遵守以下规则！)：
+  . 格式保持：请确保翻译后的文件格式与原文件一致
+  . 每条字幕必须独立翻译，保持原有的分句结构
+  . 如果原文是空白或只有空格的行，请返回一个空行
   
   请直接返回翻译结果，每条翻译之间用"<splitter>"分隔，确保返回数量与原文完全一致：
   
@@ -320,7 +343,11 @@ export default function SubtitleTranslator() {
       alert('请选择文件并输入API密钥');
       return;
     }
-  
+    
+    // 重置翻译和预览相关的状态
+    setTranslatedSubtitles(null);
+    setFileInfo(null);
+
     setTranslating(true);
     setProgress(0);
   
@@ -360,6 +387,39 @@ export default function SubtitleTranslator() {
         
         setProgress(((i + currentBatch.length) / dialogueLines.length) * 100);
       }
+
+      const processedSubtitles = format === 'srt' 
+        ? subtitleLines
+            .filter(line => line.type === 'dialogue')
+            .map((line, idx) => ({
+              index: idx + 1,
+              timing: line.timing || '',
+              text: line.text || '',
+              translatedText: translatedLines[idx]?.content.split('\n').slice(2).join('\n') || ''
+            }))
+        : subtitleLines
+            .filter(line => line.type === 'dialogue')
+            .map((line, idx) => {
+              // 提取时间轴信息
+              const parts = line.content.split(',');
+              const timing = parts.slice(1, 2).join(',');
+              return {
+                index: idx + 1,
+                timing,
+                text: line.text || '',
+                translatedText: translatedLines[idx]?.content.split(',').slice(-1)[0].trim() || ''
+              };
+            });
+      
+      //设置状态
+      setTranslatedSubtitles(processedSubtitles);
+      setFileInfo({
+        file,
+        format,
+        subtitleLines,
+        titleInfo,
+        translatedTitle: translatedTitleLine
+      });
   
       // 根据格式生成输出
       let output: string;
@@ -383,6 +443,7 @@ export default function SubtitleTranslator() {
         output = translatedLines.map(line => line.content).join('\n\n') + '\n';
       }
   
+      /* 自动下载
       const blob = new Blob([output], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -392,6 +453,7 @@ export default function SubtitleTranslator() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      */
   
     } catch (error: any) {
       alert('翻译过程中出现错误：' + error.message);
@@ -399,6 +461,51 @@ export default function SubtitleTranslator() {
       setTranslating(false);
       setProgress(0);
     }
+  };
+
+  const generateAssOutput = (
+    subtitles: Array<{
+      index: number;
+      timing: string;
+      text: string;
+      translatedText: string;
+    }>, 
+    originalLines: SubtitleLine[], 
+    titleInfo: TitleInfo,
+    translatedTitle: string
+  ): string => {
+    const headerLines = originalLines
+      .filter(line => line.type !== 'dialogue')
+      .map(line => {
+        if (line.content === titleInfo.titleLine) {
+          return translatedTitle;
+        }
+        return line.content;
+      });
+  
+    const dialogueLines = subtitles.map((sub, idx) => {
+      const originalDialogue = originalLines.find(
+        line => line.type === 'dialogue' && 
+        line.text === sub.text && 
+        line.content.includes(sub.timing)
+      );
+      return originalDialogue 
+        ? `${originalDialogue.prefix}${sub.translatedText}`
+        : '';
+    }).filter(Boolean);
+  
+    return [...headerLines, ...dialogueLines].join('\n');
+  };
+  
+  const generateSrtOutput = (subtitles: Array<{
+    index: number;
+    timing: string;
+    text: string;
+    translatedText: string;
+  }>): string => {
+    return subtitles
+      .map(sub => `${sub.index}\n${sub.timing}\n${sub.translatedText}`)
+      .join('\n\n') + '\n';
   };
 
   return (
@@ -521,7 +628,33 @@ export default function SubtitleTranslator() {
       </CardContent>
     </Card>
     {/* 当翻译完成后显示预览编辑器 */}
-    {<SubtitlePreviewEditor />}
+    {translatedSubtitles && fileInfo && (
+      <SubtitlePreviewEditor
+        subtitles={translatedSubtitles}
+        onSave={(updatedSubtitles: TranslatedSubtitleLine[]) => {
+          // 根据文件格式生成相应的输出
+          const output = fileInfo.format === 'ass'
+            ? generateAssOutput(
+                updatedSubtitles, 
+                fileInfo.subtitleLines, 
+                fileInfo.titleInfo, 
+                fileInfo.translatedTitle
+              )
+            : generateSrtOutput(updatedSubtitles);
+            
+          // 下载处理后的文件
+          const blob = new Blob([output], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `edited_${fileInfo.file?.name}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }}
+      />
+    )}
     </div>
   );
 }
