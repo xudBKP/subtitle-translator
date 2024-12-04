@@ -79,7 +79,7 @@ export default function SubtitleTranslator() {
   const [apiUrl, setApiUrl] = useState('https://openai.com/v1/chat/completions');
   const [model, setModel] = useState('gpt-4o-mini');
   const [targetLang, setTargetLang] = useState('zh');
-  const [batchCount, setBatchCount] = useState(10); // 改为批次数
+  const [batchCount, setBatchCount] = useState(5); // 改为批次数
   const [systemPrompt, setSystemPrompt] = useState('');
   const [translating, setTranslating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -766,7 +766,7 @@ Translation rules:
             <Button
               onClick={translateSubtitles}
               className="w-full"
-              disabled={!file || !apiKey}
+              disabled={!file}
             >
               开始翻译
             </Button>
