@@ -187,11 +187,6 @@ export default function SubtitlePreviewEditor({
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-2">
-                        <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button className="text-xs text-blue-500 hover:text-blue-600">
-                            使用AI重译
-                          </button>
-                        </div>
                         <Textarea
                           value={subtitle.translatedText}
                           onChange={(e) => {

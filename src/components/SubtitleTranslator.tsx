@@ -274,12 +274,143 @@ export default function SubtitleTranslator() {
     }
   };
   
-  const translateBatch = async (subtitles: SubtitleLine[]): Promise<string[]> => {
+  const translateBatch = async (subtitles: SubtitleLine[], batchIndex:number): Promise<string[]> => {
     const textsToTranslate = subtitles
       .filter(sub => sub.type === 'dialogue' && sub.text)
       .map(sub => sub.text as string);
+
+    // 在 translateBatch 函数中添加导出功能
+    const exportApiContent = (
+      messages: Array<{role: string; content: string}>, 
+      batchIndex: number,
+      activity: boolean
+    ) => {
+      if (!activity) return;
+      const content = messages.map(msg => 
+        `// ${msg.role} role 内容:\n${msg.content}`
+      ).join('\n\n');
+      
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `api_content_batch_${batchIndex + 1}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    // 导出api得到的结果
+    const exportApiResponse = (
+      response: string,
+      batchIndex: number,
+      activity: boolean
+    ) => {
+      if (!activity) return;
+      const blob = new Blob([response], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `api_response_batch_${batchIndex + 1}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
     
     try {
+      
+      // 构建消息内容
+      const messages = [
+        ...(systemPrompt ? [{
+          role: 'system' as const,
+          content: systemPrompt
+        }] : []),
+        {
+          role: 'user' as const,
+          content: `You are a helpful assistant. You can help me by answering my questions.
+请将以下${textsToTranslate.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
+
+已知：
+  1. 每条字幕已经用"<splitter>"分隔开。
+  2. 字幕无论多少行一直到"<splitter>"为止都算一条字幕
+翻译规则：
+  1. 保持原文格式。
+  2. 即使句子不通顺也不要拆分或合并字幕。
+  3. 必须独立翻译每一条字幕。
+  4. 禁止合并多条字幕。
+  5. 禁止拆分单条字幕。
+  6. 如果原文是空白或只包含符号，请保持原样。
+  7. 保持换行符的位置（如果有）。
+
+当你觉得某条字幕明显没说完被中断了，请不要自作主张进行合并或者拆分，这会导致某条字幕对应的翻译没了。
+
+示例1:
+原文：
+She uses red as the color for the first
+<splitter>
+one, and blue for the second
+one.
+<splitter>
+
+正确翻译:
+她将红色作为第一个的颜色，
+<splitter>
+蓝色作为第二个的颜色
+<splitter>
+
+错误翻译:
+她将红色作为第一个的颜色，蓝色作为第二个的颜色
+<splitter>
+
+示例2:
+原文：
+One of the many issues I faced on my last journey
+<splitter>
+was, not knowing how to communicate with strangers.
+<splitter>
+
+正确翻译:
+我在上一个旅途的许多问题其中一个
+<splitter>
+是我不知道该怎么跟陌生人交流
+<splitter>
+
+当一条字幕太多的时候也请不要自作主张进行拆分。
+
+这是你需要给我的结果的示例：
+字幕1
+<splitter>
+字幕2
+<splitter>
+字幕3
+<splitter>
+
+请直接返回翻译结果，记得每条翻译用"<splitter>"分隔，保证翻译的字幕数量和原文相等。
+这是你需要翻译的字幕：
+  
+${textsToTranslate.map(text => `${text}<splitter>`).join('\n')}`
+        }
+      ];
+
+      
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages,
+          temperature: 0,
+        })
+      });
+      
+      
+     /* 
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -295,20 +426,27 @@ export default function SubtitleTranslator() {
             }] : []),
             {
               role: 'user' as const,
-              content: `请将以下${textsToTranslate.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
+              content: `
+              
+  Please translate the following${textsToTranslate.length} subtutles into ${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
   
-  翻译规则(请严格遵守以下规则！)：
-  . 格式保持：请确保翻译后的文件格式与原文件一致
-  . 每条字幕必须独立翻译，保持原有的分句结构
-  . 如果原文是空白或只有空格的行，请返回一个空行
-  
-  请直接返回翻译结果，每条翻译之间用"<splitter>"分隔，确保返回数量与原文完全一致：
+Translation rules:
+1.Maintain the original format, do not add or delete any punctuation.
+2.Each subtitle should be translated independently, do not merge or split.
+3.Even if the context is related, strictly translate according to the original sentence structure.
+4.If the original text is blank or contains only symbols, keep it as is.
+    
+  Please return the translation results directly, with each translation separated by "<splitter>", ensuring the number of translations matches the original exactly:
   
   ${textsToTranslate.join('\n<splitter>\n')}`
             }
-          ]
+          ],
+          temperature: 0,
         })
       });
+      */
+
+      
   
       if (!response.ok) {
         throw new Error(`API 请求失败: ${response.status}`);
@@ -316,6 +454,12 @@ export default function SubtitleTranslator() {
     
       const data = await response.json() as TranslationResponse;
       const translatedText = data.choices[0].message.content;
+
+      // 导出到 API 的内容
+      exportApiContent(messages, batchIndex, false);
+      // 导出 API 响应
+      exportApiResponse(translatedText, batchIndex, false);
+
       const translatedArray = translatedText.split('<splitter>').map((text: string) => text.trim());
   
       // 检查翻译结果数量是否匹配
@@ -372,7 +516,8 @@ export default function SubtitleTranslator() {
       // 按批次翻译
       for (let i = 0; i < dialogueLines.length; i += itemsPerBatch) {
         const currentBatch = dialogueLines.slice(i, Math.min(i + itemsPerBatch, dialogueLines.length));
-        const translatedTexts = await translateBatch(currentBatch);
+        const batchIndex = Math.floor(i/itemsPerBatch);
+        const translatedTexts = await translateBatch(currentBatch, batchIndex);
         
         for (let j = 0; j < currentBatch.length; j++) {
           const originalLine = currentBatch[j];
@@ -519,7 +664,12 @@ export default function SubtitleTranslator() {
           <div>
             <label className="block text-sm font-medium mb-1">系统提示词（可选）</label>
             <Textarea
-              placeholder="在此输入翻译要求，例如：'请在翻译时保持通俗易懂的语气，使用日常用语'"
+              placeholder={[
+                '再次输入翻译要求，例如："请在翻译时使用日常用语"',
+                '或者介绍下该影片的类型，故事背景等',
+                '',
+                '注意：不通顺的语句可能导致翻译错位，请注意检查'
+              ].join('\n')}
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               className="min-h-[100px]"
@@ -527,7 +677,7 @@ export default function SubtitleTranslator() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">上传字幕文件</label>
+            <label className="block text-sm font-medium mb-1">上传字幕文件 (仅支持 srt ass)</label>
             <Input
               type="file"
               accept=".srt,.ass"
@@ -591,7 +741,7 @@ export default function SubtitleTranslator() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
-                总批次数（将字幕平均分成几批翻译）
+                将字幕分成几批翻译(建议至少5次左右开始)
               </label>
               <Input
                 type="number"
