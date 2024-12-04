@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Eye, EyeOff } from 'lucide-react';
 
+import SubtitlePreviewEditor from '@/components/SubtitlePreviewEditor';
+
 interface TitleInfo {
   hasTitle: boolean;
   titleLine: string;
@@ -400,6 +402,7 @@ export default function SubtitleTranslator() {
   };
 
   return (
+    <div>
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
         <h1 className="text-2xl font-bold">字幕翻译工具</h1>
@@ -513,8 +516,12 @@ export default function SubtitleTranslator() {
               开始翻译
             </Button>
           )}
+          
         </div>
       </CardContent>
     </Card>
+    {/* 当翻译完成后显示预览编辑器 */}
+    {<SubtitlePreviewEditor />}
+    </div>
   );
 }
