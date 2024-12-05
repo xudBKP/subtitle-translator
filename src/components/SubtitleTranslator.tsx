@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Eye, EyeOff } from 'lucide-react';
+import { useTranslation, UI_LANGUAGE_OPTIONS } from '@/lib/i18n';
 
 import SubtitlePreviewEditor from '@/components/SubtitlePreviewEditor';
 
@@ -40,7 +41,7 @@ interface TranslatedSubtitleLine {
   translatedText: string;
 }
 
-const LANGUAGE_OPTIONS = [
+const TRANSLATION_TARGET_OPTIONS = [
   { value: 'zh', label: '中文' },
   { value: 'en', label: 'English' },
   { value: 'ja', label: '日本語' },
@@ -58,7 +59,9 @@ const MODEL_OPTIONS = [
 
 
 export default function SubtitleTranslator() {
-  
+  const { subtitle: t, isLoading} = useTranslation(); //----------------------------------------------------------------
+
+
   const [translatedSubtitles, setTranslatedSubtitles] = useState<TranslatedSubtitleLine[] | null>(null);
   const [fileInfo, setFileInfo] = useState<{
     file: File | null;
@@ -257,7 +260,7 @@ export default function SubtitleTranslator() {
           messages: [
             {
               role: 'user' as const,
-              content: `请将以下影片标题翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}：\n${titleInfo.titleText}
+              content: `请将以下影片标题翻译成${TRANSLATION_TARGET_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}：\n${titleInfo.titleText}
               只返回翻译结果`
             }
           ]
@@ -333,7 +336,7 @@ export default function SubtitleTranslator() {
         {
           role: 'user' as const,
           content: `You are a helpful assistant. You can help me by answering my questions.
-请将以下${textsToTranslate.length}条字幕翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label}。
+请将以下${textsToTranslate.length}条字幕翻译成${TRANSLATION_TARGET_OPTIONS.find(lang => lang.value === targetLang)?.label}。
 
 已知：
   1. 每条字幕已经用"<splitter>"分隔开。
@@ -360,7 +363,7 @@ export default function SubtitleTranslator() {
 <splitter>
 
 请直接返回翻译结果，记得每条翻译用"<splitter>"分隔，保证翻译的字幕数量和原文相等。
-以下所有内容请翻译成${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label}：
+以下所有内容请翻译成${TRANSLATION_TARGET_OPTIONS.find(lang => lang.value === targetLang)?.label}：
   
 ${textsToTranslate.map(text => `${text}\n<splitter>`).join('\n')}`
         }
@@ -621,22 +624,22 @@ Translation rules:
       .join('\n\n') + '\n';
   };
 
+  if (isLoading) {
+    return <div>Loading...</div>;  // 或者使用一个加载动画组件
+  }
+
   return (
     <div>
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
-        <h1 className="text-2xl font-bold">字幕在线翻译编辑工具</h1>
+        <h1 className="text-2xl font-bold">{t.title}</h1>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">系统提示词（可选）</label>
+            <label className="block text-sm font-medium mb-1">{t.systemPrompt.label}</label>
             <Textarea
-              placeholder={[
-                '可选择输入翻译要求，例如："请在翻译时使用日常用语",或者介绍下该影片的角色，故事背景等',
-                '',
-                '注意：字幕文件本身语句不通顺可能导致翻译错位，请注意检查'
-              ].join('\n')}
+              placeholder={t.systemPrompt.placeholder.join('\n')}
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               className="min-h-[100px]"
@@ -644,7 +647,9 @@ Translation rules:
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">上传字幕文件 (仅支持 srt ass)</label>
+            <label className="block text-sm font-medium mb-1">
+              {t.fileUpload.label} ({t.fileUpload.supportText})
+            </label>
             <Input
               type="file"
               accept=".srt,.ass"
@@ -654,11 +659,11 @@ Translation rules:
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">API设置</label>
+            <label className="block text-sm font-medium mb-1">{t.apiSettings.title}</label>
             <div className="relative mb-2">
               <Input
                 type={showApiKey ? "text" : "password"}
-                placeholder="未输入 API 密钥时将使用默认 API"
+                placeholder={t.apiSettings.keyPlaceholder} // 无API 使用 默认
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="w-full pr-10"
@@ -699,7 +704,7 @@ Translation rules:
                 onChange={(e) => setTargetLang(e.target.value)}
                 className="w-full p-2 border rounded-md"
               >
-                {LANGUAGE_OPTIONS.map(lang => (
+                {TRANSLATION_TARGET_OPTIONS.map(lang => (
                   <option key={lang.value} value={lang.value}>
                     {lang.label}
                   </option>
@@ -722,13 +727,13 @@ Translation rules:
                 className="w-full"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>更保守</span>
-                <span>更创造性</span>
+                <span>{t.translation.temperature.conservative}</span>
+                <span>{t.translation.temperature.creative}</span>
               </div>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
-                将字幕分成几批翻译(建议至少5次左右开始)
+              {t.translation.batch.label} 
               </label>
               <Input
                 type="number"
@@ -749,7 +754,7 @@ Translation rules:
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
-              <p className="text-sm text-center mt-2">{Math.round(progress)}% 完成</p>
+              <p className="text-sm text-center mt-2">{Math.round(progress)}% {t.translation.progress}</p>
             </div>
           ) : (
             <Button
@@ -757,7 +762,7 @@ Translation rules:
               className="w-full"
               disabled={!file}
             >
-              开始翻译
+              {t.translation.start}
             </Button>
           )}
           

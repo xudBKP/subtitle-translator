@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
 
 interface SubtitleLine {
     index: number;
@@ -34,6 +35,7 @@ export default function SubtitlePreviewEditor({
     subtitles = null,
     onSave
   }: SubtitlePreviewEditorProps) {
+  const { subtitle: t } = useTranslation();
   // 生成100条示例字幕
   const subtitleData = subtitles || generateDemoSubtitles(100);
   const [editedSubtitles, setEditedSubtitles] = useState(subtitleData);
@@ -124,10 +126,10 @@ export default function SubtitlePreviewEditor({
         <CardHeader ref={cardHeaderRef} className="flex flex-col space-y-4 border-b pb-4">
           <div className="flex justify-between items-center">
             <div className="space-y-1">
-              <h2 className="text-xl font-semibold">字幕预览与编辑</h2>
+              <h2 className="text-xl font-semibold">{t.preview.title}</h2>
               <div className="text-sm text-gray-500 flex items-center gap-4">
-                <span>总字幕数：{totalSubtitles}</span>
-                <span>当前范围：{startIndex + 1}-{endIndex}</span>
+                <span>{t.preview.total}：{totalSubtitles}</span>
+                <span>{t.preview.range}：{startIndex + 1}-{endIndex}</span>
               </div>
             </div>
             <Button 
@@ -135,30 +137,35 @@ export default function SubtitlePreviewEditor({
               onClick={() => onSave?.(editedSubtitles)}
             >
               <Save size={16} />
-              保存并下载
+              {t.preview.save}
             </Button>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-gray-600">每页显示</span>
+            <span className="text-gray-600">{t.preview.display}</span>
             <select 
               className="border rounded px-2 py-1 bg-white"
               value={pageSize}
               onChange={handlePageSizeChange}
             >
-              <option value="10">10 条</option>
-              <option value="20">20 条</option>
-              <option value="30">30 条</option>
-              <option value="50">50 条</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
             </select>
           </div>
         </CardHeader>
+
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 border-b w-1/2">原文</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 border-b w-1/2">译文</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 border-b w-1/2">
+                    {t.preview.original}
+                  </th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 border-b w-1/2">
+                    {t.preview.translated}
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -210,7 +217,51 @@ export default function SubtitlePreviewEditor({
           </div>
 
           <div className="flex items-center justify-between px-6 py-4 border-t bg-white sticky bottom-0">
-            <div className="flex items-center gap-1">
+            
+
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-6">
+                <div className="text-sm text-gray-600">
+                  {t.preview.num} {currentPage}/{totalPages} {t.preview.page}
+                </div>
+
+                <form onSubmit={handleJumpToPage} className="flex items-center gap-3">
+                  <Input
+                    type="text"
+                    value={jumpPage}
+                    onChange={(e) => setJumpPage(e.target.value)}
+                    placeholder={t.preview.jumpPage}
+                    className="w-32 text-sm"
+                  />
+                  <Button 
+                    type="submit"
+                    className="h-8 px-3"
+                  >
+                    {t.preview.jumpTo}
+                  </Button>
+                </form>
+              </div>
+
+              <div className="h-8 w-px bg-gray-200" />
+
+              <form onSubmit={handleSubtitleJump} className="flex items-center gap-3">
+                <Input
+                  type="text"
+                  value={subtitleNumber}
+                  onChange={(e) => setSubtitleNumber(e.target.value)}
+                  placeholder={t.preview.jumpSubtitle}
+                  className="w-32 text-sm"
+                />
+                <Button 
+                  type="submit"
+                  className="h-8 px-3"
+                >
+                  {t.preview.jumpTo}
+                </Button>
+              </form>
+            </div>
+
+            <div className="flex items-center gap-5">
               <Button
                 className="h-8 w-8 p-0"
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
@@ -225,49 +276,6 @@ export default function SubtitlePreviewEditor({
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
-            </div>
-
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-6">
-                <div className="text-sm text-gray-600">
-                  第 {currentPage}/{totalPages} 页
-                </div>
-
-                <form onSubmit={handleJumpToPage} className="flex items-center gap-3">
-                  <Input
-                    type="text"
-                    value={jumpPage}
-                    onChange={(e) => setJumpPage(e.target.value)}
-                    placeholder="跳转到页码..."
-                    className="w-32 text-sm"
-                  />
-                  <Button 
-                    type="submit"
-                    className="h-8 px-3"
-                  >
-                    跳转
-                  </Button>
-                </form>
-              </div>
-
-              <div className="h-8 w-px bg-gray-200" />
-
-              <form onSubmit={handleSubtitleJump} className="flex items-center gap-3">
-                <div className="text-sm text-gray-600">跳转到字幕</div>
-                <Input
-                  type="text"
-                  value={subtitleNumber}
-                  onChange={(e) => setSubtitleNumber(e.target.value)}
-                  placeholder="字幕编号..."
-                  className="w-24 text-sm"
-                />
-                <Button 
-                  type="submit"
-                  className="h-8 px-3"
-                >
-                  跳转
-                </Button>
-              </form>
             </div>
           </div>
         </CardContent>
