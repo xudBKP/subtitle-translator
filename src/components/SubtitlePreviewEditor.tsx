@@ -112,13 +112,33 @@ export default function SubtitlePreviewEditor({
     }
   };
 
-  // 当每页条数改变时，重新计算当前页
+  // 添加键盘事件处理
   useEffect(() => {
-    const maxPage = Math.ceil(totalSubtitles / pageSize);
-    if (currentPage > maxPage) {
-      setCurrentPage(maxPage);
-    }
-  }, [pageSize, totalSubtitles, currentPage]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 检查当前焦点元素是否是输入框或文本区域
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // 左方向键：上一页
+      if (e.key === 'ArrowLeft') {
+        setCurrentPage(prev => Math.max(1, prev - 1));
+      }
+      // 右方向键：下一页
+      else if (e.key === 'ArrowRight') {
+        setCurrentPage(prev => Math.min(totalPages, prev + 1));
+      }
+    };
+
+    // 添加事件监听器
+    window.addEventListener('keydown', handleKeyDown);
+
+    // 清理函数
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [totalPages]); // 依赖 totalPages 以便在页数变化时更新
 
   return (
     <div className="max-w-6xl mx-auto p-4">

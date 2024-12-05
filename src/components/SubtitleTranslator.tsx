@@ -335,41 +335,25 @@ export default function SubtitleTranslator() {
         }] : []),
         {
           role: 'user' as const,
-          content: `You are a helpful assistant. You can help me by answering my questions.
-请将以下${textsToTranslate.length}条字幕翻译成${TRANSLATION_TARGET_OPTIONS.find(lang => lang.value === targetLang)?.label}。
-
+          content: `请将以下${textsToTranslate.length}条字幕翻译成
+          ${TRANSLATION_TARGET_OPTIONS.find(lang => lang.value === targetLang)?.label}。
 已知：
   1. 每条字幕已经用"<splitter>"分隔开。
   2. 字幕无论多少行一直到"<splitter>"为止都算一条字幕
 翻译规则：
   1. 保持原文格式，不要添加或删除任何标点符号。
   2. 即使句子不通顺也不要拆分或合并字幕。
-  3. 必须独立翻译每一条字幕。
-  4. 禁止合并多条字幕。
-  5. 禁止拆分单条字幕。
-  6. 如果原文是空白或只包含符号，请保持原样。
-  7. 保持换行符的位置（如果有）。
+  3. 禁止合并多条字幕。
+  4. 禁止拆分单条字幕。
+  5. 如果原文是空白或只包含符号，请保持原样。
+  6. 保持换行符的位置（如果有）。
 
-当你觉得某条字幕明显没说完被中断了，请不要自作主张进行合并或者拆分，这会导致某条字幕对应的翻译没了。
-
-当一条字幕太多的时候也请不要自作主张进行拆分。
-
-这是你需要给我的结果的示例：
-字幕1
-<splitter>
-字幕2
-<splitter>
-字幕3
-<splitter>
-
-请直接返回翻译结果，记得每条翻译用"<splitter>"分隔，保证翻译的字幕数量和原文相等。
-以下所有内容请翻译成${TRANSLATION_TARGET_OPTIONS.find(lang => lang.value === targetLang)?.label}：
+当你觉得某条字幕明显没说完被中断了，请不要自作主张进行合并或者拆分。
+请直接返回翻译结果，记得每条翻译用"<splitter>"分隔，保证翻译的字幕条总数量不变：
   
 ${textsToTranslate.map(text => `${text}\n<splitter>`).join('\n')}`
         }
       ];
-
-      
 
       const response = await fetch(apiKey ? apiUrl : DEFAULT_VALUES.url, {
         method: 'POST',
@@ -384,44 +368,6 @@ ${textsToTranslate.map(text => `${text}\n<splitter>`).join('\n')}`
         })
       });
       
-      
-     /* 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            ...(systemPrompt ? [{
-              role: 'system' as const,
-              content: systemPrompt
-            }] : []),
-            {
-              role: 'user' as const,
-              content: `
-              
-  Please translate the following${textsToTranslate.length} subtutles into ${LANGUAGE_OPTIONS.find(lang => lang.value === targetLang)?.label || '中文'}。
-  
-Translation rules:
-1.Maintain the original format, do not add or delete any punctuation.
-2.Each subtitle should be translated independently, do not merge or split.
-3.Even if the context is related, strictly translate according to the original sentence structure.
-4.If the original text is blank or contains only symbols, keep it as is.
-    
-  Please return the translation results directly, with each translation separated by "<splitter>", ensuring the number of translations matches the original exactly:
-  
-  ${textsToTranslate.join('\n<splitter>\n')}`
-            }
-          ],
-          temperature: 0,
-        })
-      });
-      */
-
-      
   
       if (!response.ok) {
         throw new Error(`API 请求失败: ${response.status}`);
@@ -430,9 +376,9 @@ Translation rules:
       const data = await response.json() as TranslationResponse;
       const translatedText = data.choices[0].message.content;
 
-      // 导出到 API 的内容
+      // debug: 导出到 API 的内容
       exportApiContent(messages, batchIndex, false);
-      // 导出 API 响应
+      // debug: 导出 API 响应
       exportApiResponse(translatedText, batchIndex, false);
 
       const translatedArray = translatedText.split('<splitter>').map((text: string) => text.trim());
