@@ -625,7 +625,7 @@ Translation rules:
     <div>
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
-        <h1 className="text-2xl font-bold">字幕翻译工具</h1>
+        <h1 className="text-2xl font-bold">字幕在线翻译编辑工具</h1>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -633,10 +633,9 @@ Translation rules:
             <label className="block text-sm font-medium mb-1">系统提示词（可选）</label>
             <Textarea
               placeholder={[
-                '可选择输入翻译要求，例如："请在翻译时使用日常用语"',
-                '或者介绍下该影片的类型，故事背景等',
+                '可选择输入翻译要求，例如："请在翻译时使用日常用语",或者介绍下该影片的角色，故事背景等',
                 '',
-                '注意：不通顺的语句可能导致翻译错位，请注意检查'
+                '注意：字幕文件本身语句不通顺可能导致翻译错位，请注意检查'
               ].join('\n')}
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
