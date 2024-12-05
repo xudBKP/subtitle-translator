@@ -5,7 +5,9 @@ const config: NextConfig = {
   images: {
     unoptimized: true,
   },
-  basePath: process.env.NODE_ENV === 'production' ? '/subtitle-translator' : '' // 开发环境不需要 basePath
+  basePath: process.env.NODE_ENV === 'production' 
+    ? (process.env.USE_CUSTOM_DOMAIN === 'true' ? '' : '/subtitle-translator')
+    : '' // 开发环境不需要 basePath
 }
 
 export default config
